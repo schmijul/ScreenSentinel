@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "screensentinel"
+version = "0.1.0"
+description = "CLI accountability app that monitors focus drift from screenshots"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "mss>=9.0.1",
+  "plyer>=2.1.0",
+  "rich>=13.7.1",
+]
+
+[project.optional-dependencies]
+vision = [
+  "moondream>=1.1.0",
+]
+dev = [
+  "build>=1.4.2",
+]
+
+[project.scripts]
+screensentinel = "screensentinel.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
