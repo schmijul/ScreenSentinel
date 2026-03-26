@@ -24,6 +24,21 @@ ScreenSentinel uses the `moondream` Python client and reads these optional env v
 - `MOONDREAM_MODE=endpoint`: uses `MOONDREAM_ENDPOINT` (default `http://localhost:2020/v1`)
 - `MOONDREAM_MODE=cloud`: uses hosted endpoint with `MOONDREAM_API_KEY`
 
+If local mode fails with a gated Hugging Face model error:
+
+```bash
+# Option A: request access + authenticate
+huggingface-cli login
+
+# Option B: local moondream server endpoint
+export MOONDREAM_MODE=endpoint
+export MOONDREAM_ENDPOINT=http://localhost:2020/v1
+
+# Option C: cloud API
+export MOONDREAM_MODE=cloud
+export MOONDREAM_API_KEY=<key>
+```
+
 Run a session:
 
 ```bash

@@ -22,15 +22,40 @@ class VisionEngine:
         # moondream>=1.1.0 exposes a vl(...) factory.
         if hasattr(md, "vl"):
             mode = os.getenv("MOONDREAM_MODE", "local").strip().lower()
-            if mode == "cloud":
-                return md.vl(api_key=os.getenv("MOONDREAM_API_KEY"))
-            if mode == "endpoint":
-                endpoint = os.getenv("MOONDREAM_ENDPOINT", "http://localhost:2020/v1")
-                return md.vl(endpoint=endpoint, api_key=os.getenv("MOONDREAM_API_KEY"))
-            # Default local path (requires local backend/model setup).
-            return md.vl(local=True)
+            try:
+                if mode == "cloud":
+                    return md.vl(api_key=os.getenv("MOONDREAM_API_KEY"))
+                if mode == "endpoint":
+                    endpoint = os.getenv("MOONDREAM_ENDPOINT", "http://localhost:2020/v1")
+                    return md.vl(endpoint=endpoint, api_key=os.getenv("MOONDREAM_API_KEY"))
+                # Default local path (requires local backend/model setup).
+                return md.vl(local=True)
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(self._friendly_load_error(exc)) from exc
 
         raise RuntimeError("Unable to initialize moondream model from installed package.")
+
+    def _friendly_load_error(self, exc: Exception) -> str:
+        msg = str(exc)
+        lowered = msg.lower()
+        if (
+            "gatedrepoerror" in lowered
+            or "cannot access gated repo" in lowered
+            or "moondream/moondream3-preview" in lowered
+        ):
+            return (
+                "Moondream local model access is gated on Hugging Face. "
+                "Fix one of these ways:\n"
+                "1) Request access to moondream/moondream3-preview and login:\n"
+                "   huggingface-cli login\n"
+                "2) Use endpoint mode:\n"
+                "   export MOONDREAM_MODE=endpoint\n"
+                "   export MOONDREAM_ENDPOINT=http://localhost:2020/v1\n"
+                "3) Use cloud mode:\n"
+                "   export MOONDREAM_MODE=cloud\n"
+                "   export MOONDREAM_API_KEY=<key>"
+            )
+        return f"Failed to initialize Moondream model: {msg}"
 
     def analyze(self, image_path: Path, goal: str) -> VisionResult:
         prompt = (

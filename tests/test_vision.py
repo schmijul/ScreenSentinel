@@ -23,6 +23,13 @@ class TestVisionParsing(unittest.TestCase):
         self.assertAlmostEqual(result.confidence, 0.77)
         self.assertEqual(result.reason, "scrolling")
 
+    def test_friendly_error_for_gated_repo(self) -> None:
+        message = self.engine._friendly_load_error(
+            Exception("GatedRepoError: Cannot access gated repo moondream/moondream3-preview")
+        )
+        self.assertIn("huggingface-cli login", message)
+        self.assertIn("MOONDREAM_MODE=endpoint", message)
+
 
 if __name__ == "__main__":
     unittest.main()
