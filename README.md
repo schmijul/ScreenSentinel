@@ -35,3 +35,5 @@ Optional flags:
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 python3 -m build
 ```
+
+CI runs the same checks on every push and pull request.
