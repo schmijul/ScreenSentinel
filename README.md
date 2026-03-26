@@ -1,77 +1,99 @@
 # ScreenSentinel
 
-CLI accountability tool that captures your screen every 30 seconds, checks if you are on-task with a local Moondream vision model, and calls out drift in real-time.
+ScreenSentinel is a CLI accountability app that captures your screen every 30 seconds, checks if you are still on-task, sends a notification when you drift, and writes a session report to SQLite.
 
-## Quickstart
+## What It Does (MVP)
+
+- Screen capture with `mss`
+- Vision-based on-task check
+- Drift notification with `plyer`
+- Session + drift logging in SQLite
+- End-of-session CLI report with `rich`
+
+## Quick Start (Fully Local, No API Keys)
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-```
 
-Install local vision support:
-
-```bash
-pip install -e ".[vision]"
-```
-
-## Moondream runtime modes
-
-ScreenSentinel uses the `moondream` Python client and reads these optional env vars:
-
-- `MOONDREAM_MODE=local` (default): uses `moondream.vl(local=True)`
-- `MOONDREAM_MODE=endpoint`: uses `MOONDREAM_ENDPOINT` (default `http://localhost:2020/v1`)
-- `MOONDREAM_MODE=cloud`: uses hosted endpoint with `MOONDREAM_API_KEY`
-
-If local mode fails with a gated Hugging Face model error:
-
-```bash
-# Option A: request access + authenticate
-huggingface-cli login
-
-# Option B: local moondream server endpoint
-export MOONDREAM_MODE=endpoint
-export MOONDREAM_ENDPOINT=http://localhost:2020/v1
-
-# Option C: cloud API
-export MOONDREAM_MODE=cloud
-export MOONDREAM_API_KEY=<key>
-```
-
-## Fully local and free (no API keys)
-
-You can run ScreenSentinel with a local Ollama vision model instead of Moondream:
-
-```bash
-# one-time setup
+# start ollama in another terminal
 ollama serve
+
+# one-time model pull
 ollama pull llava:7b
 
-# run ScreenSentinel with Ollama backend
+# tell ScreenSentinel to use local ollama vision
 export SCREENSENTINEL_VISION_BACKEND=ollama
 export OLLAMA_VISION_MODEL=llava:7b
-screensentinel start --goal "I'm building ScreenSentinel for 30 minutes" --duration-min 30
+
+# run a test session
+screensentinel start --goal "I'm building ScreenSentinel for 10 minutes" --duration-min 10
 ```
 
-Run a session:
+Note: the first sample can take longer while the vision backend warms up.
+
+## CLI Usage
 
 ```bash
-screensentinel start --goal "I'm building ScreenSentinel for 2 hours" --duration-min 120
+screensentinel start --goal "I'm building ScreenSentinel" --duration-min 120
 ```
 
 Optional flags:
 
 - `--interval-sec` (default: `30`)
 - `--strictness` (`lenient|normal|strict`, default: `normal`)
-- `--debug-save-captures` (store screenshot files)
+- `--debug-save-captures` (keep screenshots in `data/captures/`)
 - `--db-path` (default: `data/screensentinel.db`)
 
-## Development checks
+## Vision Backends
+
+### 1) Ollama (recommended, fully local/free)
+
+```bash
+export SCREENSENTINEL_VISION_BACKEND=ollama
+export OLLAMA_VISION_MODEL=llava:7b
+```
+
+Optional:
+
+```bash
+export OLLAMA_ENDPOINT=http://127.0.0.1:11434/api/generate
+```
+
+### 2) Moondream Python client
+
+Install:
+
+```bash
+pip install -e ".[vision]"
+```
+
+Runtime modes:
+
+- `MOONDREAM_MODE=local` (default)
+- `MOONDREAM_MODE=endpoint` + `MOONDREAM_ENDPOINT`
+- `MOONDREAM_MODE=cloud` + `MOONDREAM_API_KEY`
+
+If local mode fails with a gated Hugging Face repo, either request access and login (`huggingface-cli login`) or use Ollama backend.
+
+## Data and Output
+
+- SQLite DB: `data/screensentinel.db`
+- Optional debug screenshots: `data/captures/`
+
+## Development
+
+Run tests:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+Build package:
+
+```bash
 python3 -m build
 ```
 
-CI runs the same checks on every push and pull request.
+CI runs tests + build on every push and PR.
