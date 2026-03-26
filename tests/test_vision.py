@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from screensentinel.vision import VisionEngine
 
@@ -29,6 +33,27 @@ class TestVisionParsing(unittest.TestCase):
         )
         self.assertIn("huggingface-cli login", message)
         self.assertIn("MOONDREAM_MODE=endpoint", message)
+
+    def test_ollama_backend_returns_response_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            image_path = Path(tmp) / "frame.png"
+            image_path.write_bytes(b"fake")
+
+            class _Resp:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+                def read(self):
+                    return b'{"response":"{\\"on_task\\": true, \\"confidence\\": 0.9, \\"reason\\": \\"coding\\"}"}'
+
+            with patch.dict(os.environ, {"SCREENSENTINEL_VISION_BACKEND": "ollama"}, clear=False):
+                engine = VisionEngine()
+                with patch("urllib.request.urlopen", return_value=_Resp()):
+                    raw = engine._run_inference("prompt", image_path)
+                    self.assertIn('"on_task": true', raw)
 
 
 if __name__ == "__main__":

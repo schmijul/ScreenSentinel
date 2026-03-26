@@ -39,6 +39,21 @@ export MOONDREAM_MODE=cloud
 export MOONDREAM_API_KEY=<key>
 ```
 
+## Fully local and free (no API keys)
+
+You can run ScreenSentinel with a local Ollama vision model instead of Moondream:
+
+```bash
+# one-time setup
+ollama serve
+ollama pull llava:7b
+
+# run ScreenSentinel with Ollama backend
+export SCREENSENTINEL_VISION_BACKEND=ollama
+export OLLAMA_VISION_MODEL=llava:7b
+screensentinel start --goal "I'm building ScreenSentinel for 30 minutes" --duration-min 30
+```
+
 Run a session:
 
 ```bash

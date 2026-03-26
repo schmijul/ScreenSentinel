@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from .types import VisionResult
@@ -9,9 +12,13 @@ from .types import VisionResult
 
 class VisionEngine:
     def __init__(self) -> None:
+        self._backend = os.getenv("SCREENSENTINEL_VISION_BACKEND", "moondream").strip().lower()
         self._model = self._load_model()
 
     def _load_model(self):
+        if self._backend == "ollama":
+            return None
+
         try:
             import moondream as md  # type: ignore
         except ImportError as exc:
@@ -78,6 +85,9 @@ class VisionEngine:
         )
 
     def _run_inference(self, prompt: str, image_path: Path) -> str:
+        if self._backend == "ollama":
+            return self._run_ollama(prompt, image_path)
+
         model = self._model
         if hasattr(model, "query"):
             try:
@@ -93,6 +103,37 @@ class VisionEngine:
             return str(result.get("answer", result))
 
         raise RuntimeError("Moondream model object has no supported inference method.")
+
+    def _run_ollama(self, prompt: str, image_path: Path) -> str:
+        model = os.getenv("OLLAMA_VISION_MODEL", "llava:7b")
+        endpoint = os.getenv("OLLAMA_ENDPOINT", "http://127.0.0.1:11434/api/generate")
+        image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "images": [image_b64],
+            "stream": False,
+            "format": "json",
+        }
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            endpoint,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=90) as response:
+                parsed = json.loads(response.read().decode("utf-8"))
+            return str(parsed.get("response", ""))
+        except urllib.error.URLError as exc:
+            raise RuntimeError(
+                "Ollama is not reachable. Start it and pull a vision model, e.g.:\n"
+                "  ollama serve\n"
+                "  ollama pull llava:7b\n"
+                "Then set SCREENSENTINEL_VISION_BACKEND=ollama"
+            ) from exc
 
     def _parse_response(self, raw: str) -> VisionResult | None:
         text = raw.strip()
