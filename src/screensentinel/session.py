@@ -15,7 +15,9 @@ from .types import SessionConfig, SessionSummary, VisionResult
 from .vision import VisionEngine
 
 
-def _score_line(focus_pct: float) -> str:
+def _score_line(focus_pct: float, total_checks: int) -> str:
+    if total_checks == 0:
+        return "No checks collected yet. Let it run long enough for the first sample."
     if focus_pct >= 85.0:
         return "Locked in. Keep this intensity."
     if focus_pct >= 60.0:
@@ -61,6 +63,7 @@ def run_session_with(
     console.print(
         f"Duration {config.duration_min}m, check interval {config.interval_sec}s, strictness {config.strictness}"
     )
+    console.print("First sample can take longer while the vision backend warms up.")
 
     try:
         while now_fn() < end_at:
@@ -123,7 +126,7 @@ def run_session_with(
     for reason, count in storage.top_drift_reasons(session_id):
         console.print(f"- {reason}: {count}")
 
-    console.print(f"[bold]{_score_line(focus_pct)}[/bold]")
+    console.print(f"[bold]{_score_line(focus_pct, total_checks)}[/bold]")
 
     return SessionSummary(
         session_id=session_id,

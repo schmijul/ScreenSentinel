@@ -8,7 +8,7 @@ from pathlib import Path
 from rich.console import Console
 
 from screensentinel.db import Storage
-from screensentinel.session import run_session_with
+from screensentinel.session import _score_line, run_session_with
 from screensentinel.types import SessionConfig, VisionResult
 
 
@@ -44,6 +44,10 @@ class _FakeClock:
 
 
 class TestSessionLoop(unittest.TestCase):
+    def test_score_line_when_no_checks(self) -> None:
+        line = _score_line(0.0, 0)
+        self.assertIn("No checks collected", line)
+
     def test_logs_checks_and_drifts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = SessionConfig(
