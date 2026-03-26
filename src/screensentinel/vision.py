@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 from .types import VisionResult
@@ -14,17 +16,19 @@ class VisionEngine:
             import moondream as md  # type: ignore
         except ImportError as exc:
             raise RuntimeError(
-                "Moondream is not installed. Install dependencies and retry."
+                "Moondream is not installed. Install with: pip install -e '.[vision]'"
             ) from exc
 
-        candidates = ("model", "create_model", "load")
-        for name in candidates:
-            fn = getattr(md, name, None)
-            if callable(fn):
-                return fn()
-
-        if hasattr(md, "Moondream"):
-            return md.Moondream()
+        # moondream>=1.1.0 exposes a vl(...) factory.
+        if hasattr(md, "vl"):
+            mode = os.getenv("MOONDREAM_MODE", "local").strip().lower()
+            if mode == "cloud":
+                return md.vl(api_key=os.getenv("MOONDREAM_API_KEY"))
+            if mode == "endpoint":
+                endpoint = os.getenv("MOONDREAM_ENDPOINT", "http://localhost:2020/v1")
+                return md.vl(endpoint=endpoint, api_key=os.getenv("MOONDREAM_API_KEY"))
+            # Default local path (requires local backend/model setup).
+            return md.vl(local=True)
 
         raise RuntimeError("Unable to initialize moondream model from installed package.")
 
@@ -32,7 +36,7 @@ class VisionEngine:
         prompt = (
             "You are a strict focus accountability assistant. "
             "Given the user goal and screenshot, decide if the user is currently on-task. "
-            "Respond in a terse form: on_task=<true|false>; confidence=<0.0-1.0>; reason=<short phrase>. "
+            "Respond ONLY JSON with keys: on_task (bool), confidence (0..1), reason (short string). "
             f"Goal: {goal}"
         )
 
@@ -50,39 +54,49 @@ class VisionEngine:
 
     def _run_inference(self, prompt: str, image_path: Path) -> str:
         model = self._model
-        image_str = str(image_path)
-
         if hasattr(model, "query"):
-            result = model.query(image=image_str, question=prompt)
-            return str(result)
+            try:
+                from PIL import Image
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Pillow is required for moondream image loading. "
+                    "Install with: pip install -e '.[vision]'"
+                ) from exc
 
-        if hasattr(model, "caption"):
-            result = model.caption(image_str)
-            return str(result)
-
-        if hasattr(model, "__call__"):
-            result = model(prompt=prompt, image=image_str)
-            return str(result)
+            with Image.open(image_path) as image:
+                result = model.query(image=image, question=prompt)
+            return str(result.get("answer", result))
 
         raise RuntimeError("Moondream model object has no supported inference method.")
 
     def _parse_response(self, raw: str) -> VisionResult | None:
-        text = raw.strip().lower()
+        text = raw.strip()
+        lowered = text.lower()
+
+        # Preferred path: strict JSON response.
+        try:
+            payload = json.loads(text)
+            on_task = bool(payload["on_task"])
+            confidence = max(0.0, min(1.0, float(payload.get("confidence", 0.55))))
+            reason = str(payload.get("reason", "Focus drift suspected"))[:160]
+            return VisionResult(on_task=on_task, confidence=confidence, reason=reason)
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            pass
 
         on_task = None
-        if "on_task=true" in text or "on task: true" in text:
+        if "on_task=true" in lowered or "on task: true" in lowered:
             on_task = True
-        elif "on_task=false" in text or "on task: false" in text:
+        elif "on_task=false" in lowered or "on task: false" in lowered:
             on_task = False
-        elif "off-task" in text or "off task" in text:
+        elif "off-task" in lowered or "off task" in lowered:
             on_task = False
-        elif "on-task" in text or "on task" in text:
+        elif "on-task" in lowered or "on task" in lowered:
             on_task = True
 
         confidence = 0.55
         marker = "confidence="
-        if marker in text:
-            snippet = text.split(marker, 1)[1].split(";", 1)[0].strip()
+        if marker in lowered:
+            snippet = lowered.split(marker, 1)[1].split(";", 1)[0].strip()
             try:
                 confidence = max(0.0, min(1.0, float(snippet)))
             except ValueError:
@@ -90,8 +104,8 @@ class VisionEngine:
 
         reason = "Focus drift suspected"
         reason_marker = "reason="
-        if reason_marker in text:
-            reason = text.split(reason_marker, 1)[1].strip()[:160]
+        if reason_marker in lowered:
+            reason = lowered.split(reason_marker, 1)[1].strip()[:160]
 
         if on_task is None:
             return None

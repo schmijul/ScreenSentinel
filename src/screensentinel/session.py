@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -23,11 +24,29 @@ def _score_line(focus_pct: float) -> str:
 
 
 def run_session(config: SessionConfig, console: Console) -> SessionSummary:
-    storage = Storage(config.db_path)
-    capture = ScreenCapture()
-    vision = VisionEngine()
+    return run_session_with(
+        config=config,
+        console=console,
+        storage=Storage(config.db_path),
+        capture=ScreenCapture(),
+        vision=VisionEngine(),
+        now_fn=datetime.now,
+        sleep_fn=time.sleep,
+        notify_fn=send_drift_notification,
+    )
 
-    started_at = datetime.now()
+
+def run_session_with(
+    config: SessionConfig,
+    console: Console,
+    storage: Storage,
+    capture: ScreenCapture,
+    vision: VisionEngine,
+    now_fn: Callable[[], datetime],
+    sleep_fn: Callable[[float], None],
+    notify_fn: Callable[[str, str], None],
+) -> SessionSummary:
+    started_at = now_fn()
     end_at = started_at + timedelta(minutes=config.duration_min)
 
     session_id = storage.start_session(
@@ -44,8 +63,8 @@ def run_session(config: SessionConfig, console: Console) -> SessionSummary:
     )
 
     try:
-        while datetime.now() < end_at:
-            timestamp = datetime.now()
+        while now_fn() < end_at:
+            timestamp = now_fn()
             capture_name = timestamp.strftime("%Y%m%d_%H%M%S") + ".png"
             image_path = Path("data/captures") / capture_name
 
@@ -76,7 +95,7 @@ def run_session(config: SessionConfig, console: Console) -> SessionSummary:
             )
 
             if should_notify_drift(result=result, strictness=config.strictness):
-                send_drift_notification(config.goal, result.reason)
+                notify_fn(config.goal, result.reason)
                 storage.log_drift(
                     session_id=session_id,
                     check_id=check_id,
@@ -84,13 +103,13 @@ def run_session(config: SessionConfig, console: Console) -> SessionSummary:
                     reason=result.reason,
                 )
 
-            sleep_seconds = max(0.0, config.interval_sec - (datetime.now() - timestamp).total_seconds())
+            sleep_seconds = max(0.0, config.interval_sec - (now_fn() - timestamp).total_seconds())
             if sleep_seconds > 0:
-                time.sleep(sleep_seconds)
+                sleep_fn(sleep_seconds)
     except KeyboardInterrupt:
         console.print("[yellow]Session interrupted by user.[/yellow]")
 
-    ended_at = datetime.now()
+    ended_at = now_fn()
     storage.finish_session(session_id, ended_at)
     total_checks, on_task_checks, drift_count = storage.session_counts(session_id)
 

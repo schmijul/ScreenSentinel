@@ -16,6 +16,14 @@ Install local vision support:
 pip install -e ".[vision]"
 ```
 
+## Moondream runtime modes
+
+ScreenSentinel uses the `moondream` Python client and reads these optional env vars:
+
+- `MOONDREAM_MODE=local` (default): uses `moondream.vl(local=True)`
+- `MOONDREAM_MODE=endpoint`: uses `MOONDREAM_ENDPOINT` (default `http://localhost:2020/v1`)
+- `MOONDREAM_MODE=cloud`: uses hosted endpoint with `MOONDREAM_API_KEY`
+
 Run a session:
 
 ```bash

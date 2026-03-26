@@ -9,6 +9,6 @@ class ScreenCapture:
     def capture_primary(self, output_path: Path) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with mss() as sct:
-            primary_monitor = sct.monitors[1]
-            sct.shot(mon=primary_monitor, output=str(output_path))
+            # mss.shot expects a monitor index for mon=...
+            sct.shot(mon=1, output=str(output_path))
         return output_path

@@ -45,6 +45,11 @@ def main() -> int:
         from .session import run_session
         from .types import SessionConfig
 
+        if args.duration_min <= 0:
+            parser.error("--duration-min must be > 0")
+        if args.interval_sec <= 0:
+            parser.error("--interval-sec must be > 0")
+
         console = Console()
         config = SessionConfig(
             goal=args.goal,
@@ -54,7 +59,11 @@ def main() -> int:
             debug_save_captures=args.debug_save_captures,
             db_path=args.db_path,
         )
-        run_session(config, console)
+        try:
+            run_session(config, console)
+        except RuntimeError as exc:
+            console.print(f"[bold red]Startup failed:[/bold red] {exc}")
+            return 2
         return 0
 
     parser.print_help()
